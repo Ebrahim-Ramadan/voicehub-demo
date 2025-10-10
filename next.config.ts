@@ -7,7 +7,6 @@ const nextConfig = {
     // Optional: allow builds to complete even with TypeScript errors
     ignoreBuildErrors: true,
   },
-  extends: "next/core-web-vitals",
   rules: {
     "@typescript-eslint/no-unused-vars": "off",
   },
