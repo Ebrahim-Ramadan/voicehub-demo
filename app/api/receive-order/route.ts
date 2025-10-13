@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { addWebhook, getAllWebhooks } from '../../../lib/webhookStore';
 
 export async function POST(req: NextRequest) {
   const timestamp = new Date().toISOString();
@@ -73,14 +72,6 @@ export async function POST(req: NextRequest) {
       console.error('\nBody Read Error:', typeof readErr, String(readErr));
     }
 
-    // Store for UI display
-    addWebhook({
-      url: req.url,
-      headers,
-      bodyText: textBody,
-      jsonBody
-    });
-
     console.log('\n=== End Webhook Log ===\n');
     return NextResponse.json({ received: true, timestamp }, { status: 200 });
   } catch (err) {
@@ -89,13 +80,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Return stored webhooks
+// Return storage disabled message
 export async function GET() {
-  try {
-    const items = getAllWebhooks();
-    return NextResponse.json({ ok: true, items }, { status: 200 });
-  } catch (err) {
-    console.error('Error reading stored webhooks:', err);
-    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
-  }
+  return NextResponse.json(
+    { 
+      ok: false, 
+      error: 'Server-side storage has been disabled. Webhooks are logged but not stored.' 
+    },
+    { status: 200 }
+  );
 }
