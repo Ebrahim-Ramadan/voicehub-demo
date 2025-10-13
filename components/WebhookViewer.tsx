@@ -1,10 +1,9 @@
 "use client";
-import {  CheckCheckIcon } from 'lucide-react';
+import { CheckCheckIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import VoiceHubWidget from './VoiceHubWidget';
 
-// We'll attempt to lazily load framer-motion. If it's not available, the component
-// falls back to simpler CSS animations.
+// Lazy load framer-motion with CSS fallback
 let motion: any = null;
 let AnimatePresence: any = ({ children }: any) => <>{children}</>;
 
@@ -14,8 +13,7 @@ async function loadMotion() {
     const fm = await import('framer-motion');
     motion = fm.motion;
     AnimatePresence = fm.AnimatePresence;
-  } catch (err) {
-    // framer-motion not installed — continue with CSS-only fallback
+  } catch {
     motion = null;
     AnimatePresence = ({ children }: any) => <>{children}</>;
   }
@@ -54,79 +52,56 @@ function TypedPreview({ text }: { text: string }) {
 }
 
 function renderOrderPreview(json: any, menu: any[] | null = null) {
-  console.log('renderOrderPreview input:', JSON.stringify(json, null, 2));
-  console.log('menu data:', menu);
-  
-  // Some webhooks contain a stringified JSON inside a field like `ass`.
-  // Normalize into an object if possible.
   let obj = json;
   if (!obj) return null;
-  
-  // If top-level has string fields that are stringified JSON (common key: `ass`),
-  // attempt to parse them and merge into the object. We give precedence to
-  // parsed payloads that contain an `order` object so the rest of the
-  // preview detection works normally.
+
+  // Normalize JSON if stringified in a field like `ass`
   if (typeof obj === 'object') {
-    // Prefer explicit common field 'ass' first (user-provided example)
-    if (typeof (obj as any).ass === 'string') {
+    if (typeof obj.ass === 'string') {
       try {
-        const parsed = JSON.parse((obj as any).ass);
+        const parsed = JSON.parse(obj.ass);
         if (parsed && typeof parsed === 'object') {
           obj = parsed;
         }
       } catch {
-        // ignore parse errors on ass
+        // Ignore parse errors
       }
     }
 
-    // If we still don't have an order, attempt to find any string field
-    // containing JSON and adopt the first one that parses to an object.
     if (!obj.order) {
       for (const key of Object.keys(obj)) {
-        const v = (obj as any)[key];
+        const v = obj[key];
         if (typeof v === 'string') {
           try {
             const parsed = JSON.parse(v);
             if (parsed && typeof parsed === 'object') {
-              // If parsed contains an `order`, use it immediately.
               if (parsed.order) {
                 obj = parsed;
                 break;
               }
-              // Otherwise, prefer parsed if obj doesn't already look like an order
               if (!obj.order) {
                 obj = parsed;
-                // continue searching in case a later field contains `order`
               }
             }
           } catch {
-            // ignore non-JSON strings
+            // Ignore non-JSON strings
           }
         }
       }
     }
   }
 
-  // Now detect order shape
   const order = obj?.order ?? obj;
-  console.log('Parsed order object:', order);
-  
-  if (!order || !Array.isArray(order.items) && !Array.isArray(order?.items)) {
-    console.log('No valid items array found in order:', order);
+  if (!order || !Array.isArray(order.items)) {
     return null;
   }
 
-  const items = order.items || [];
-  console.log('Found items:', items);
-
-  // Enrich items with menu data if available
-  const enriched: Array<{ original: any; menuItem: any | null }> = items.map((it: any) => {
+  const items = order.items;
+  const enriched = items.map((it: any) => {
     const id = it.item_id ?? it.item ?? it.id;
-    console.log('Looking for menu item with id:', id);
     let menuItem = null;
     if (menu && id != null) {
       menuItem = menu.find((m: any) => m.item === Number(id) || m.item === id);
-      console.log('Found menu item:', menuItem);
     }
     return { original: it, menuItem };
   });
@@ -134,7 +109,6 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
   const matchedCount = enriched.filter((e) => !!e.menuItem).length;
   const totalCount = enriched.length;
 
-  // Group by item id to detect same-item multiple sizes
   const groups = new Map<string | number, Array<{ original: any; menuItem: any | null }>>();
   for (const e of enriched) {
     const id = e.original.item_id ?? e.original.item ?? e.original.id ?? '__unknown__';
@@ -143,26 +117,23 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
     groups.get(key)!.push(e);
   }
 
-  // If there's a single group and it has more than one entry (same item different sizes)
-  // render a friendly card view instead of the table
   if (groups.size === 1) {
     const [key, groupItems] = Array.from(groups.entries())[0];
     if (groupItems.length > 1) {
       const menuItem = groupItems[0].menuItem;
-  const Wrapper: any = motion ? motion.div : 'div';
-  const ChildMotion: any = motion ? motion.div : 'div';
+      const Wrapper: any = motion ? motion.div : 'div';
+      const ChildMotion: any = motion ? motion.div : 'div';
       return (
         <div className="mt-2">
           <Wrapper className="p-4 bg-slate-900 rounded" {...(motion ? { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.25 } } : {})}>
             <div className="flex items-start gap-4">
               <div className="flex-1">
                 <div className="text-lg font-semibold">{menuItem?.name_en ?? groupItems[0].original.name_en ?? 'Item'}</div>
-                <div className="text-sm text-gray-300" dir="rtl" style={{ direction: 'rtl' }}>{menuItem?.name_ar ?? groupItems[0].original.name_ar ?? ''}</div>
+                <div className="text-sm text-gray-300" dir="rtl">{menuItem?.name_ar ?? groupItems[0].original.name_ar ?? ''}</div>
                 <div className="text-xs text-gray-400 mt-2">{menuItem?.category ?? ''} • {menuItem?.subsection ?? ''}</div>
                 <div className="mt-3 space-y-2">
-                  {(groupItems as any[]).map((g, i) => {
+                  {groupItems.map((g, i) => {
                     const it = g.original;
-                    // select price
                     let priceVal: number | null = null;
                     if (typeof it.price === 'number') priceVal = it.price;
                     else if (g.menuItem && it.size && g.menuItem.sizes && g.menuItem.sizes[it.size] != null) priceVal = Number(g.menuItem.sizes[it.size]);
@@ -206,30 +177,6 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
     }
   }
 
-  // Helper: simple token-overlap fuzzy scorer to suggest candidates when no match
-  function getCandidates(it: any, max = 3) {
-    if (!menu) return [];
-    const normalize = (s: string) => (s || '').toString().toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ');
-    const target = normalize(it.name_en ?? it.name ?? it.ass ?? '');
-    if (!target.trim()) return [];
-    const targetTokens = new Set(target.split(/\s+/).filter(Boolean));
-
-    const scores = menu.map((m: any) => {
-      const en = normalize(m.name_en || '');
-      const ar = normalize(m.name_ar || '');
-      const text = `${en} ${ar}`.trim();
-      const tokens = new Set(text.split(/\s+/).filter(Boolean));
-      let common = 0;
-      for (const t of targetTokens) if (tokens.has(t)) common += 1;
-      const score = common / Math.max(targetTokens.size, tokens.size, 1);
-      return { menu: m, score };
-    });
-
-    scores.sort((a, b) => b.score - a.score);
-    return scores.filter(s => s.score > 0).slice(0, max);
-  }
-
-  // Compute order total using either payload price or menu price for size
   let orderTotal = 0;
   let currency: string | null = null;
   for (const { original: it, menuItem } of enriched) {
@@ -237,11 +184,7 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
     let price: number | null = null;
     if (typeof it.price === 'number') price = it.price;
     else if (menuItem && it.size && menuItem.sizes && menuItem.sizes[it.size] != null) price = Number(menuItem.sizes[it.size]);
-    else if (menuItem && menuItem.sizes) {
-      // fallback: take first available size price
-      const first = Object.values(menuItem.sizes)[0];
-      price = first != null ? Number(first) : null;
-    }
+    else if (menuItem && menuItem.sizes) price = Number(Object.values(menuItem.sizes)[0]);
     if (price != null) {
       orderTotal += price * qty;
       currency = currency ?? (it.currency ?? menuItem?.currency ?? null);
@@ -251,32 +194,30 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
   const ItemCard: any = motion ? motion.div : 'div';
 
   return (
-    <div className="mt-2  p-4 rounded-xl">
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-sm font-medium">Order Preview</div>
-        <div className="text-xs">
-          <span className="px-2 py-1 rounded-full bg-green-700/20 text-green-200">
-            {matchedCount}/{totalCount} Items
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-lg font-medium text-white">Your Order</div>
+        <div className="text-sm">
+          <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300">
+            {matchedCount} items
           </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div className="space-y-3">
         {enriched.map(({ original: it, menuItem }: any, idx: number) => {
           const matched = !!menuItem;
           const qty = Number(it.quantity ?? it.qty ?? 1) || 1;
           let priceVal: number | null = null;
-          
-          // Compute price display
+
           if (typeof it.price === 'number') {
             priceVal = it.price;
           } else if (menuItem && it.size && menuItem.sizes && menuItem.sizes[it.size] != null) {
             priceVal = Number(menuItem.sizes[it.size]);
           } else if (menuItem && menuItem.sizes) {
-            const first = Object.values(menuItem.sizes)[0];
-            if (first != null) priceVal = Number(first);
+            priceVal = Number(Object.values(menuItem.sizes)[0]);
           }
-          
+
           const currency = it.currency ?? menuItem?.currency ?? '';
           const priceDisplay = priceVal != null ? `${priceVal.toFixed(3)} ${currency}` : '-';
           const imagePath = menuItem?.image || '/items-images/default-item.jpg';
@@ -292,21 +233,16 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
                 transition: { duration: 0.3, delay: idx * 0.1 }
               } : {})}
             >
-              {/* Quantity Badge */}
               <div className="absolute top-2 left-2 z-10">
                 <div className="bg-blue-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
                   {qty}
                 </div>
               </div>
-
-              {/* Check Icon for Matched */}
-              {matched && (
+              {/* {matched && (
                 <div className="absolute top-2 right-2 z-10">
-                 <CheckCheckIcon className='text-green-500 w-4'/>
+                  <CheckCheckIcon className="text-green-500 w-4" />
                 </div>
-              )}
-
-              {/* Image */}
+              )} */}
               <div className="relative pb-[100%] bg-slate-700">
                 <img
                   src={imagePath}
@@ -317,8 +253,6 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
                   }}
                 />
               </div>
-
-              {/* Content */}
               <div className="p-3">
                 <div className="font-medium text-sm mb-1 line-clamp-1">
                   {menuItem?.name_en ?? it.name_en ?? it.name ?? 'Unknown Item'}
@@ -326,7 +260,6 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
                 <div className="text-xs text-gray-400 mb-2 line-clamp-1" dir="rtl">
                   {menuItem?.name_ar ?? it.name_ar ?? ''}
                 </div>
-                
                 <div className="flex items-center justify-between">
                   <div className="text-xs">
                     <span className={`${sizeMismatch ? 'text-yellow-300' : 'text-gray-400'}`}>
@@ -340,8 +273,6 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
           );
         })}
       </div>
-
-      {/* Total */}
       <div className="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center">
         <div className="text-sm text-gray-400">Total Amount</div>
         <div className="text-lg font-semibold">
@@ -362,11 +293,9 @@ export default function WebhookViewer() {
       const res = await fetch('/api/receive-order');
       const data = await res.json();
       if (data?.items) setItems(data.items);
-      if (data?.ok === false && data?.error && data.error.toLowerCase().includes('storage disabled')) {
-        // server-side storage disabled — show a notice and stop polling
+      if (data?.ok === false && data?.error?.toLowerCase().includes('storage disabled')) {
         setItems([]);
         setLoading(false);
-        // throw a special error to stop interval
         throw new Error('STORAGE_DISABLED');
       }
     } catch (err) {
@@ -381,10 +310,9 @@ export default function WebhookViewer() {
   };
 
   useEffect(() => {
+    loadMotion().catch(() => {});
     fetchItems();
     const t = setInterval(fetchItems, 2000);
-    loadMotion().catch(() => {});
-    // fetch menu for enrichment
     (async () => {
       try {
         const res = await fetch('/menu.json');
@@ -398,96 +326,143 @@ export default function WebhookViewer() {
     })();
     return () => clearInterval(t);
   }, []);
-
+const categories = React.useMemo(() => {
+  const cats = new Set<string>();
+  items.forEach(it => {
+    try {
+      const order = JSON.parse(it.jsonBody?.ass)?.order;
+      if (order?.items) {
+        order.items.forEach((item: any) => {
+          const menuItem = menu?.find(m => m.item === item.item_id);
+          if (menuItem) {
+            cats.add(menuItem.category);
+            cats.add(menuItem.subsection);
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Error parsing categories:', e);
+    }
+  });
+  return Array.from(cats).filter(Boolean);
+}, [items, menu]);
   return (
-    <div className="w-full max-w-4xl">
+    <div className="fixed inset-0 bg-[#1a1a1a] text-white overflow-auto">
       <style>{`
-        @keyframes wh-fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: wh-fade-in 220ms ease both; }
-        .animate-pulse { opacity: 0.6; animation: wh-blink 700ms steps(1,end) infinite; }
-        @keyframes wh-blink { 50% { opacity: 0; } }
-        @keyframes ripple { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
-        .animate-ripple { animation: ripple 1s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .slide-in { animation: slideIn 0.4s ease-out forwards; }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
+        .float { animation: float 3s ease-in-out infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        .pulse-slow { animation: pulse 2s ease-in-out infinite; }
       `}</style>
-      <VoiceHubWidget />
-      {/* <h2 className="text-lg font-semibold mb-4">Received Webhooks</h2> */}
-      {/* {loading && <div>Loading…</div>} */}
-     
-     <div className="w-full max-w-2xl mx-auto p-4 sm:p-6">
-  <style>{`
-    @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    .fadeInUp { animation: fadeInUp 0.4s ease both; }
-    @keyframes blink { 50% { opacity: 0; } }
-    .cursor-blink { opacity: 0.6; animation: blink 1s steps(1,end) infinite; }
-  `}</style>
 
-  <div className="text-center mb-6">
-    <h1 className="text-2xl font-bold text-white">🎙️ Voice Order Assistant</h1>
-    <p className="text-sm text-gray-400 mt-1">Review your voice-based order in real-time</p>
-  </div>
-
-  {/* {loading && (
-    <div className="text-center text-sm text-gray-400">
-      <div className="inline-block px-4 py-2 rounded-lg bg-slate-800/50">
-        Checking webhook service...
+      <div className="sticky top-0 z-50 backdrop-blur-md bg-black/30 border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-3">
+              <span className="text-xl font-bold">☕</span>
+              <h1 className="text-xl font-semibold">Voice Coffee Order</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-sm">
+                Order Active
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  )} */}
 
-  {/* {!loading && items.length === 0 && (
-    <div className="text-center">
-      <div className="inline-block px-6 py-3 rounded-xl bg-amber-500/10 text-amber-200 border border-amber-500/20">
-        <p className="font-medium">Server-side Storage Disabled</p>
-        <p className="text-sm mt-1 text-amber-200/70">
-          Webhooks are being logged but not stored for display.
-          Check server logs for details.
-        </p>
-      </div>
-    </div>
-  )} */}
-
-  <AnimatePresence>
-    {items.map((it) => {
-      const Wrapper: any = motion ? motion.div : 'div';
-      const wrapperProps = motion
-        ? { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -10 }, transition: { duration: 0.3 } }
-        : { className: 'fadeInUp' };
-
-      return (
-        <Wrapper key={it.id} {...wrapperProps} className="p-4 border-b-2 border-neutral-500">
-          <div className="text-xs text-gray-400">
-            Order received at <span className="font-mono">{new Date(it.receivedAt).toLocaleTimeString()}</span>
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10 min-h-[600px]">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <span className="text-2xl">🛒</span>
+              <h2 className="text-xl font-semibold">Current Order</h2>
+            </div>
+            {/* <VoiceHubWidget /> */}
           </div>
 
-          {/* <div className="text-sm font-medium text-gray-300">
-            Source: <span className="font-mono text-blue-300">{it.url}</span>
-          </div> */}
-
-          {/* {it.bodyText && (
-            <div className="bg-slate-900 rounded p-3">
-              <div className="text-xs text-gray-400 mb-1">🎧 You said:</div>
-              <TypedPreview text={it.bodyText} />
+          {loading && (
+            <div className="text-center text-sm text-gray-400">
+              <div className="inline-block px-4 py-2 rounded-lg bg-slate-800/50">
+                Checking webhook service...
+              </div>
             </div>
-          )} */}
-
-          {it.jsonBody && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3 }}
-              className="mt-2"
-            >
-              {renderOrderPreview(it.jsonBody, menu) || (
-                <pre className="text-xs overflow-auto max-h-56  p-3 rounded text-gray-300">{JSON.stringify(it.jsonBody, null, 2)}</pre>
-              )}
-            </motion.div>
           )}
-        </Wrapper>
-      );
-    })}
-  </AnimatePresence>
-</div>
 
+          {!loading && items.length === 0 && (
+            <div className="text-center text-sm text-gray-400">
+              <div className="inline-block px-4 py-2 rounded-lg bg-slate-800/50">
+                No orders received yet
+              </div>
+            </div>
+          )}
+
+          <AnimatePresence>
+            {items.map((it) => {
+              const Wrapper: any = motion ? motion.div : 'div';
+              const wrapperProps = motion
+                ? { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -10 }, transition: { duration: 0.3 } }
+                : { className: 'slide-in' };
+
+              return (
+                <Wrapper key={it.id} {...wrapperProps} className="mb-6">
+                  <div className="text-xs text-gray-400 mb-2">
+                    Order received at <span className="font-mono">{new Date(it.receivedAt).toLocaleTimeString()}</span>
+                  </div>
+                  {it.jsonBody && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-6">
+                      {(() => {
+                        // Parse and enrich items
+                        let obj = it.jsonBody;
+                        if (typeof obj === 'object' && typeof obj.ass === 'string') {
+                          try { obj = JSON.parse(obj.ass); } catch {}
+                        }
+                        const order = obj?.order ?? obj;
+                        if (!order || !Array.isArray(order.items)) return null;
+                        return order.items.map((item: any, idx: number) => {
+                          const menuItem = menu?.find(m => m.item === item.item_id);
+                          const qty = Number(item.quantity ?? item.qty ?? 1) || 1;
+                          let priceVal: number | null = null;
+                          if (typeof item.price === 'number') priceVal = item.price;
+                          else if (menuItem && item.size && menuItem.sizes && menuItem.sizes[item.size] != null) priceVal = Number(menuItem.sizes[item.size]);
+                          else if (menuItem && menuItem.sizes) priceVal = Number(Object.values(menuItem.sizes)[0]);
+                          const priceDisplay = priceVal != null ? `KWD ${priceVal.toFixed(3)}` : '-';
+                          const imagePath = menuItem?.image || '/items-images/default-item.jpg';
+                          return (
+                            <div key={idx} className="bg-[#2A2A2A] rounded-xl p-4 flex flex-col items-center shadow-md">
+                              <div className="w-20 h-20 rounded-lg overflow-hidden mb-3">
+                                <img src={imagePath} alt={menuItem?.name_en ?? 'Item'} className="w-full h-full object-cover" />
+                              </div>
+                              <div className="w-full flex-1 flex flex-col items-center">
+                                <div className="flex items-center justify-between w-full mb-1">
+                                  <h3 className="font-semibold text-white text-base truncate">{menuItem?.name_en ?? item.name_en ?? item.name ?? 'Unknown Item'}</h3>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-yellow-400">★</span>
+                                    <span className="text-xs text-gray-300">4.8</span>
+                                  </div>
+                                </div>
+                                <div className="text-xs text-gray-400 mb-2 w-full text-center">{item.size} · {menuItem?.subsection ?? menuItem?.category ?? ''}</div>
+                                <div className="flex items-center justify-between w-full mt-2">
+                                  <span className="text-emerald-400 font-bold text-base">{priceDisplay}</span>
+                                  <span className="text-gray-500">×</span>
+                                  <span className="text-gray-300 font-semibold">{qty}</span>
+                                  <button className="ml-2 w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-white text-lg font-bold">+</button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
+                </Wrapper>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      </div>
     </div>
   );
 }
