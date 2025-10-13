@@ -1,5 +1,5 @@
 "use client";
-import { CheckCheckIcon } from 'lucide-react';
+import { Check, CheckCheckIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import VoiceHubWidget from './VoiceHubWidget';
 
@@ -347,7 +347,7 @@ const categories = React.useMemo(() => {
   return Array.from(cats).filter(Boolean);
 }, [items, menu]);
   return (
-    <div className="fixed inset-0 bg-[#1a1a1a] text-white overflow-auto">
+    <div className="fixed inset-0 bg-[#262626] text-white overflow-auto">
       <style>{`
         @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .slide-in { animation: slideIn 0.4s ease-out forwards; }
@@ -374,7 +374,7 @@ const categories = React.useMemo(() => {
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="bg-white/5 rounded-2xl p-6 backdrop-blur-sm border border-white/10 min-h-[600px]">
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6   min-h-[400px]">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
               <span className="text-2xl">🛒</span>
@@ -431,24 +431,28 @@ const categories = React.useMemo(() => {
                           const priceDisplay = priceVal != null ? `KWD ${priceVal.toFixed(3)}` : '-';
                           const imagePath = menuItem?.image || '/items-images/default-item.jpg';
                           return (
-                            <div key={idx} className="bg-[#2A2A2A] rounded-xl p-4 flex flex-col items-center shadow-md">
-                              <div className="w-20 h-20 rounded-lg overflow-hidden mb-3">
+                            <div key={idx} className="relative flex flex-col items-center">
+                              <div className="w-56 h-32 rounded-xl overflow-hidden mb-[-20px] z-10 shadow-lg">
                                 <img src={imagePath} alt={menuItem?.name_en ?? 'Item'} className="w-full h-full object-cover" />
                               </div>
-                              <div className="w-full flex-1 flex flex-col items-center">
-                                <div className="flex items-center justify-between w-full mb-1">
-                                  <h3 className="font-semibold text-white text-base truncate">{menuItem?.name_en ?? item.name_en ?? item.name ?? 'Unknown Item'}</h3>
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-yellow-400">★</span>
-                                    <span className="text-xs text-gray-300">4.8</span>
+                              <div className="bg-[#2A2A2A] rounded-xl pt-6 pb-4 px-4 flex flex-col items-center shadow-md w-full">
+                                <div className="w-full flex-1 flex flex-col items-center mt-2">
+                                  <div className="flex items-center justify-between w-full mb-1">
+                                    <h3 className="font-semibold text-white text-base truncate">{menuItem?.name_en ?? item.name_en ?? item.name ?? 'Unknown Item'}</h3>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-yellow-400">★</span>
+                                      <span className="text-xs text-gray-300">4.8</span>
+                                    </div>
                                   </div>
-                                </div>
-                                <div className="text-xs text-gray-400 mb-2 w-full text-center">{item.size} · {menuItem?.subsection ?? menuItem?.category ?? ''}</div>
-                                <div className="flex items-center justify-between w-full mt-2">
-                                  <span className="text-emerald-400 font-bold text-base">{priceDisplay}</span>
-                                  <span className="text-gray-500">×</span>
-                                  <span className="text-gray-300 font-semibold">{qty}</span>
-                                  <button className="ml-2 w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-white text-lg font-bold">+</button>
+                                  <div className="text-xs text-gray-400 mb-2 w-full text-center">{item.size} · {menuItem?.subsection ?? menuItem?.category ?? ''}</div>
+                                  <div className="flex items-center justify-between w-full mt-2">
+                                    <span className="text-emerald-400 font-bold text-base">{priceDisplay}</span>
+                                    <span className="text-gray-500">×</span>
+                                    <span className="text-gray-300 font-semibold">{qty}</span>
+                                    <p className="ml-2 w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-white text-lg font-bold">
+                                      <Check className="w-4" />
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
                             </div>
