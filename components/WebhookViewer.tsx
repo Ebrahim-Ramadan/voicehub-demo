@@ -1,7 +1,6 @@
 "use client";
-import { Check, CheckCheckIcon } from 'lucide-react';
+import {  CheckCheckIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import FloatingMic from './FloatingMic';
 import VoiceHubWidget from './VoiceHubWidget';
 
 // We'll attempt to lazily load framer-motion. If it's not available, the component
@@ -55,26 +54,54 @@ function TypedPreview({ text }: { text: string }) {
 }
 
 function renderOrderPreview(json: any, menu: any[] | null = null) {
+  console.log('renderOrderPreview input:', JSON.stringify(json, null, 2));
+  console.log('menu data:', menu);
+  
   // Some webhooks contain a stringified JSON inside a field like `ass`.
   // Normalize into an object if possible.
   let obj = json;
   if (!obj) return null;
-
-  // If top-level has a single key whose value is a JSON string, attempt to parse it
+  
+  // If top-level has string fields that are stringified JSON (common key: `ass`),
+  // attempt to parse them and merge into the object. We give precedence to
+  // parsed payloads that contain an `order` object so the rest of the
+  // preview detection works normally.
   if (typeof obj === 'object') {
-    // check common fields
-    for (const key of Object.keys(obj)) {
-      const v = (obj as any)[key];
-      if (typeof v === 'string') {
-        try {
-          const parsed = JSON.parse(v);
-          // If parsed looks like order, use it
-          if (parsed && typeof parsed === 'object') {
-            obj = parsed;
-            break;
+    // Prefer explicit common field 'ass' first (user-provided example)
+    if (typeof (obj as any).ass === 'string') {
+      try {
+        const parsed = JSON.parse((obj as any).ass);
+        if (parsed && typeof parsed === 'object') {
+          obj = parsed;
+        }
+      } catch {
+        // ignore parse errors on ass
+      }
+    }
+
+    // If we still don't have an order, attempt to find any string field
+    // containing JSON and adopt the first one that parses to an object.
+    if (!obj.order) {
+      for (const key of Object.keys(obj)) {
+        const v = (obj as any)[key];
+        if (typeof v === 'string') {
+          try {
+            const parsed = JSON.parse(v);
+            if (parsed && typeof parsed === 'object') {
+              // If parsed contains an `order`, use it immediately.
+              if (parsed.order) {
+                obj = parsed;
+                break;
+              }
+              // Otherwise, prefer parsed if obj doesn't already look like an order
+              if (!obj.order) {
+                obj = parsed;
+                // continue searching in case a later field contains `order`
+              }
+            }
+          } catch {
+            // ignore non-JSON strings
           }
-        } catch {
-          // ignore
         }
       }
     }
@@ -82,16 +109,24 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
 
   // Now detect order shape
   const order = obj?.order ?? obj;
-  if (!order || !Array.isArray(order.items) && !Array.isArray(order?.items)) return null;
+  console.log('Parsed order object:', order);
+  
+  if (!order || !Array.isArray(order.items) && !Array.isArray(order?.items)) {
+    console.log('No valid items array found in order:', order);
+    return null;
+  }
 
   const items = order.items || [];
+  console.log('Found items:', items);
 
   // Enrich items with menu data if available
   const enriched: Array<{ original: any; menuItem: any | null }> = items.map((it: any) => {
     const id = it.item_id ?? it.item ?? it.id;
+    console.log('Looking for menu item with id:', id);
     let menuItem = null;
     if (menu && id != null) {
       menuItem = menu.find((m: any) => m.item === Number(id) || m.item === id);
+      console.log('Found menu item:', menuItem);
     }
     return { original: it, menuItem };
   });

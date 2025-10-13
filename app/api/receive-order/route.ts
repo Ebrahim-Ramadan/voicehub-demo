@@ -80,13 +80,18 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Return storage disabled message
+// Return last received order for testing
 export async function GET() {
-  return NextResponse.json(
-    { 
-      ok: false, 
-      error: 'Server-side storage has been disabled. Webhooks are logged but not stored.' 
-    },
-    { status: 200 }
-  );
+  return NextResponse.json({
+    items: [{
+      id: 'test-1',
+      receivedAt: new Date().toISOString(),
+      url: 'test',
+      headers: {},
+      bodyText: null,
+      jsonBody: {
+        ass: '{"order":{"items":[{"item_id":13,"size":"medium","quantity":2}]}}'
+      }
+    }]
+  }, { status: 200 });
 }

@@ -31,8 +31,8 @@ export default function VoiceHubWidget() {
       className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
       dangerouslySetInnerHTML={{
         __html: `<dq-voice
-          agent-id="68ec1761b02d839a10379f06"
-          api-key="dqKey_cf07b45b16a07fd296923c9bb328046e3ed53ed0a640f82d8a1f2caaef21bca37wygd2eeufc"
+          agent-id="68e59a67ebf131f13030265b"
+          api-key="dqKey_891f22908457d4ec3fa25de1cad472fa59a940ffa8d5ec52fdd0196604980670ure6wzs3zu"
         ></dq-voice>`
       }}
     />
