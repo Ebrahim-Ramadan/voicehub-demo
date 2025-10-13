@@ -193,8 +193,22 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
 
   const ItemCard: any = motion ? motion.div : 'div';
 
+  const OrderReceivedAnimation = () => (
+    <div className="absolute top-0 left-0 right-0 flex justify-center">
+      <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-2 rounded-full transform -translate-y-1/2 shadow-lg">
+        <div className="flex items-center space-x-2">
+          <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="font-medium">New Order Received!</span>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative">
+      <OrderReceivedAnimation />
       <div className="flex items-center justify-between mb-2">
         <div className="text-lg font-medium text-white">Your Order</div>
         <div className="text-sm">
@@ -346,6 +360,30 @@ const categories = React.useMemo(() => {
   });
   return Array.from(cats).filter(Boolean);
 }, [items, menu]);
+  const ListeningAnimation = () => (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <div className="relative w-48 h-48">
+        <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping"></div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-32 h-32 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 animate-pulse"></div>
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center text-white">
+          <span className="animate-pulse">Listening...</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const BackgroundAnimation = () => (
+    <div className="fixed inset-0 pointer-events-none overflow-hidden">
+      <div className="absolute inset-0">
+        <div className="absolute top-0 -left-4 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-blob"></div>
+        <div className="absolute top-0 -right-4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-blob animation-delay-4000"></div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 bg-[#262626] text-white overflow-auto">
       <style>{`
@@ -355,7 +393,24 @@ const categories = React.useMemo(() => {
         .float { animation: float 3s ease-in-out infinite; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         .pulse-slow { animation: pulse 2s ease-in-out infinite; }
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
       `}</style>
+      <BackgroundAnimation />
+      {loading && <ListeningAnimation />}
 
       <div className="sticky top-0 z-50 backdrop-blur-md bg-black/30 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
