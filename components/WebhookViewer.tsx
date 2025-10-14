@@ -2,6 +2,8 @@
 import { Loader } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import VoiceHubWidget from './VoiceHubWidget';
+import Image from 'next/image';
+import io from 'socket.io-client';
 
 // Lazy load framer-motion with CSS fallback
 let motion: any = null;
@@ -341,8 +343,31 @@ export default function WebhookViewer() {
 
   useEffect(() => {
     loadMotion().catch(() => {});
+    
+    // Initial fetch
     fetchItems();
-    const t = setInterval(fetchItems, 2000);
+
+    // Setup WebSocket connection
+    const socket = io('http://localhost:3001', {
+      path: '/api/ws',
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+
+    socket.on('connect', () => {
+      console.log('WebSocket connected');
+    });
+
+    // Listen for new webhook events
+    socket.on('webhook-received', (data: Stored) => {
+      setItems(prevItems => [{
+        ...data,
+        formattedTime: formatOrderTime(data.receivedAt)
+      }, ...prevItems]);
+    });
+
+    // Load menu data
     (async () => {
       try {
         const res = await fetch('/menu.json');
@@ -354,7 +379,10 @@ export default function WebhookViewer() {
         console.warn('Failed to load menu.json', err);
       }
     })();
-    return () => clearInterval(t);
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const ListeningAnimation = () => (
@@ -456,8 +484,14 @@ export default function WebhookViewer() {
           <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 min-h-[500px]">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-3">
-                <span className="text-2xl">🛒</span>
-                <h2 className="text-xl font-semibold">Your Order</h2>
+                <Image
+                  src='/logo colored.jpg'
+                  className='rounded-full'
+                  alt='Your Order'
+                  width={40}
+                  height={40}
+                />
+                <h2 className="text-2xl font-semibold">Your Order</h2>
               </div>
               {/* <VoiceHubWidget /> */}
             </div>
@@ -482,7 +516,7 @@ export default function WebhookViewer() {
               return (
                 <Wrapper key={it.id} {...wrapperProps} className="mb-6">
                   <div className="text-xs text-gray-400 mb-2">
-                    Order initiated at <span className="font-mono">{it.formattedTime}</span>
+                     <span className="font-mono">{it.formattedTime}</span>
                   </div>
                   {it.jsonBody && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">

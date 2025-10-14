@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { io } from '../ws/route';
+
 export async function POST(req: NextRequest) {
   const timestamp = new Date().toISOString();
   console.log(`\n=== Webhook Received [${timestamp}] ===`);
@@ -73,6 +75,17 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('\n=== End Webhook Log ===\n');
+    
+    // Emit the webhook data to all connected clients
+    io.emit('webhook-received', {
+      id: `${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      receivedAt: timestamp,
+      url: req.url,
+      headers,
+      bodyText: textBody,
+      jsonBody
+    });
+
     return NextResponse.json({ received: true, timestamp }, { status: 200 });
   } catch (err) {
     console.error('Unexpected error in webhook handler:', err);

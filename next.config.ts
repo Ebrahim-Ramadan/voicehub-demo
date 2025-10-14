@@ -1,18 +1,27 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
- eslint: {
+  eslint: {
     ignoreDuringBuilds: true,
   },
   typescript: {
-    // Optional: allow builds to complete even with TypeScript errors
     ignoreBuildErrors: true,
   },
-  // rules: {
-  //   "@typescript-eslint/no-unused-vars": "off",
-  // },
-  
-  // Add this if not present
   transpilePackages: [],
+  webpack: (config) => {
+    config.externals.push({
+      'utf-8-validate': 'commonjs utf-8-validate',
+      'bufferutil': 'commonjs bufferutil',
+    });
+    return config;
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/socket.io/:path*',
+        destination: 'http://localhost:3001/socket.io/:path*',
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
