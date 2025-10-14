@@ -464,9 +464,8 @@ export default function WebhookViewer() {
 
       <div className="max-w-7xl mx-auto  px-4 py-8 min-h-screen w-full">
         {loading ? (
-          <div className="min-h-[400px] flex items-center justify-center">
-            <div className="gap-4 relative flex flex-col items-center">
-              <div className="w-72 h-auto relative">
+          <div className="h-[90vh] flex items-center justify-center">
+                  <div className="w-72 h-auto relative">
                 <img 
     src="/anm/stay-awake-coffee.gif"
     alt="Loading..."
@@ -474,11 +473,6 @@ export default function WebhookViewer() {
   />
   <div className="absolute inset-0 bg-gradient-to-t from-[#262626] via-transparent to-transparent" />
 </div>
-                              <div className="flex items-center gap-2 absolute bottom-4 transform translate-y-1/2">
-                 <Loader className="w-6 text-[#38839D] animate-spin" />
-                </div>
-
-            </div>
           </div>
         ) : (
           <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 min-h-[500px]">
