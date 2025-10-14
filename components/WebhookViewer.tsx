@@ -515,9 +515,9 @@ export default function WebhookViewer() {
 
               return (
                 <Wrapper key={it.id} {...wrapperProps} className="mb-6">
-                  <div className="text-xs text-gray-400 mb-2">
+                  {/* <div className="text-xs text-gray-400 mb-2">
                      <span className="font-mono">{it.formattedTime}</span>
-                  </div>
+                  </div> */}
                   {it.jsonBody && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
                       {(() => {
