@@ -1,5 +1,5 @@
 "use client";
-import { Check, CheckCheckIcon } from 'lucide-react';
+import { Loader } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import VoiceHubWidget from './VoiceHubWidget';
 
@@ -298,15 +298,31 @@ function renderOrderPreview(json: any, menu: any[] | null = null) {
 }
 
 export default function WebhookViewer() {
-  const [items, setItems] = useState<Stored[]>([]);
+  const [items, setItems] = useState<(Stored & { formattedTime?: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [menu, setMenu] = useState<any[] | null>(null);
+
+  const formatOrderTime = (receivedAt: string) => {
+    const date = new Date(receivedAt);
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  };
 
   const fetchItems = async () => {
     try {
       const res = await fetch('/api/receive-order');
       const data = await res.json();
-      if (data?.items) setItems(data.items);
+      if (data?.items) {
+        const itemsWithTime = data.items.map((item: Stored) => ({
+          ...item,
+          formattedTime: formatOrderTime(item.receivedAt)
+        }));
+        setItems(itemsWithTime);
+      }
       if (data?.ok === false && data?.error?.toLowerCase().includes('storage disabled')) {
         setItems([]);
         setLoading(false);
@@ -340,35 +356,25 @@ export default function WebhookViewer() {
     })();
     return () => clearInterval(t);
   }, []);
-const categories = React.useMemo(() => {
-  const cats = new Set<string>();
-  items.forEach(it => {
-    try {
-      const order = JSON.parse(it.jsonBody?.ass)?.order;
-      if (order?.items) {
-        order.items.forEach((item: any) => {
-          const menuItem = menu?.find(m => m.item === item.item_id);
-          if (menuItem) {
-            cats.add(menuItem.category);
-            cats.add(menuItem.subsection);
-          }
-        });
-      }
-    } catch (e) {
-      console.error('Error parsing categories:', e);
-    }
-  });
-  return Array.from(cats).filter(Boolean);
-}, [items, menu]);
+
   const ListeningAnimation = () => (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-      <div className="relative w-48 h-48">
-        <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping"></div>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-32 h-32 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 animate-pulse"></div>
+      <div className="relative flex flex-col items-center">
+        <div className="w-48 h-48 relative">
+          <img 
+            src="/anm/stay-awake-coffee.gif"
+            alt="Loading..."
+            className="w-full h-full object-contain"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#262626] via-transparent to-transparent" />
         </div>
-        <div className="absolute inset-0 flex items-center justify-center text-white">
-          <span className="animate-pulse">Listening...</span>
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <div className="text-lg font-medium text-white/90">Listening for Orders</div>
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></span>
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></span>
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></span>
+          </div>
         </div>
       </div>
     </div>
@@ -412,7 +418,7 @@ const categories = React.useMemo(() => {
       <BackgroundAnimation />
       {loading && <ListeningAnimation />}
 
-      <div className="sticky top-0 z-50 backdrop-blur-md bg-black/30 border-b border-white/10">
+      {/* <div className="sticky top-0 z-50 backdrop-blur-md bg-black/30 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
@@ -426,27 +432,39 @@ const categories = React.useMemo(() => {
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
 
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6   min-h-[400px]">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-3">
-              <span className="text-2xl">🛒</span>
-              <h2 className="text-xl font-semibold">Current Order</h2>
+      <div className="max-w-7xl mx-auto  px-4 py-8 min-h-screen w-full">
+        {loading ? (
+          <div className="min-h-[400px] flex items-center justify-center">
+            <div className="gap-4 relative flex flex-col items-center">
+              <div className="w-72 h-auto relative">
+                <img 
+    src="/anm/stay-awake-coffee.gif"
+    alt="Loading..."
+    className="w-full aspect-square rounded-full object-cover opacity-90"
+  />
+  <div className="absolute inset-0 bg-gradient-to-t from-[#262626] via-transparent to-transparent" />
+</div>
+                              <div className="flex items-center gap-2 absolute bottom-4 transform translate-y-1/2">
+                 <Loader className="w-6 text-[#38839D] animate-spin" />
+                </div>
+
             </div>
-            {/* <VoiceHubWidget /> */}
           </div>
-
-          {loading && (
-            <div className="text-center text-sm text-gray-400">
-              <div className="inline-block px-4 py-2 rounded-lg bg-slate-800/50">
-                Checking webhook service...
+        ) : (
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 min-h-[500px]">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <span className="text-2xl">🛒</span>
+                <h2 className="text-xl font-semibold">Your Order</h2>
               </div>
+              {/* <VoiceHubWidget /> */}
             </div>
-          )}
 
-          {!loading && items.length === 0 && (
+        
+
+          {items.length === 0 && (
             <div className="text-center text-sm text-gray-400">
               <div className="inline-block px-4 py-2 rounded-lg bg-slate-800/50">
                 No orders received yet
@@ -464,10 +482,10 @@ const categories = React.useMemo(() => {
               return (
                 <Wrapper key={it.id} {...wrapperProps} className="mb-6">
                   <div className="text-xs text-gray-400 mb-2">
-                    Order received at <span className="font-mono">{new Date(it.receivedAt).toLocaleTimeString()}</span>
+                    Order initiated at <span className="font-mono">{it.formattedTime}</span>
                   </div>
                   {it.jsonBody && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
                       {(() => {
                         // Parse and enrich items
                         let obj = it.jsonBody;
@@ -487,8 +505,8 @@ const categories = React.useMemo(() => {
                           const imagePath = menuItem?.image || '/items-images/default-item.jpg';
                           return (
                             <div key={idx} className="relative flex flex-col items-center">
-                              <div className="w-56 h-32 rounded-xl overflow-hidden mb-[-20px] z-10 shadow-lg">
-                                <img src={imagePath} alt={menuItem?.name_en ?? 'Item'} className="w-full h-full object-cover" />
+                              <div className="w-44 h-44 rounded-xl overflow-hidden mb-[-20px] z-10 shadow-lg">
+                                <img src={imagePath} alt={menuItem?.name_en ?? 'Item'} className="scale-125 transform w-full h-full object-cover" />
                               </div>
                               <div className="bg-[#2A2A2A] rounded-xl pt-6 pb-4 px-4 flex flex-col items-center shadow-md w-full">
                                 <div className="w-full flex-1 flex flex-col items-center mt-2">
@@ -502,10 +520,8 @@ const categories = React.useMemo(() => {
                                   <div className="text-xs text-gray-400 mb-2 w-full text-center">{item.size} · {menuItem?.subsection ?? menuItem?.category ?? ''}</div>
                                   <div className="flex items-center justify-between w-full mt-2">
                                     <span className="text-emerald-400 font-bold text-base">{priceDisplay}</span>
-                                    <span className="text-gray-500">×</span>
-                                    <span className="text-gray-300 font-semibold">{qty}</span>
                                     <p className="ml-2 w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-white text-lg font-bold">
-                                      <Check className="w-4" />
+                                      {qty}
                                     </p>
                                   </div>
                                 </div>
@@ -521,6 +537,7 @@ const categories = React.useMemo(() => {
             })}
           </AnimatePresence>
         </div>
+        )}
       </div>
     </div>
   );

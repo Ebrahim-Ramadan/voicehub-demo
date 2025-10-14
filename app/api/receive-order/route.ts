@@ -81,11 +81,13 @@ export async function POST(req: NextRequest) {
 }
 
 // Return last received order for testing
+const TEST_ORDER_TIME = '2025-10-14T02:27:43.000Z'; // Fixed timestamp for test order
+
 export async function GET() {
   return NextResponse.json({
     items: [{
       id: 'test-1',
-      receivedAt: new Date().toISOString(),
+      receivedAt: TEST_ORDER_TIME,
       url: 'test',
       headers: {},
       bodyText: null,
