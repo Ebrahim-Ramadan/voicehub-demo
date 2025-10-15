@@ -66,64 +66,51 @@ export async function POST(req: NextRequest) {
           // Format items to match expected structure
           items = items.map(item => {
             let actualItemId = item.item_id;
-            
-            // If item_id is a string, try to find matching menu item by Arabic or English name
+            let matchedMenuItem: MenuItem | undefined;
             if (typeof item.item_id === 'string') {
-              let menuItem: MenuItem | undefined;
               const searchTerm = item.item_id.trim();
+              // Determine content type and search in the most appropriate field first
+              const containsArabic = /[\u0600-\u06FF]/.test(searchTerm);
+              const isNumeric = /^\d+$/.test(searchTerm);
               
-              // Check for Arabic name match
-              if (/[\u0600-\u06FF]/.test(searchTerm)) {
-                console.log('Searching for Arabic item:', searchTerm);
-                // First try exact match
-                menuItem = menuItems.find((m: MenuItem) => m.name_ar === searchTerm);
-                console.log('Exact Arabic match result:', menuItem?.name_ar);
-                
-                // If no exact match, try normalized comparison
-                if (!menuItem) {
-                  menuItem = menuItems.find((m: MenuItem) => 
-                    m.name_ar.trim() === searchTerm ||
+              if (isNumeric) {
+                // Direct numeric search - most efficient if it's a number
+                const numericId = Number(searchTerm);
+                matchedMenuItem = menuItems.find((m: MenuItem) => m.item === numericId);
+                console.log(`Matched numeric ID ${numericId} to menu item:`, matchedMenuItem?.name_en);
+              } else if (containsArabic) {
+                // Arabic content - search in name_ar field
+                matchedMenuItem = menuItems.find((m: MenuItem) => m.name_ar === searchTerm);
+                // Try with normalized whitespace if exact match fails
+                if (!matchedMenuItem) {
+                  matchedMenuItem = menuItems.find((m: MenuItem) => 
+                    m.name_ar.trim() === searchTerm || 
                     m.name_ar.replace(/\s+/g, '') === searchTerm.replace(/\s+/g, '')
                   );
-                  console.log('Normalized Arabic match result:', menuItem?.name_ar);
                 }
-              } 
-              // Check for English name match (case insensitive)
-              if (!menuItem) {
+                console.log(`Matched Arabic text "${searchTerm}" to menu item:`, matchedMenuItem?.name_en);
+              } else {
+                // English content - search in name_en field (case-insensitive)
                 const englishSearchTerm = searchTerm.toLowerCase();
-                console.log('Trying English match for:', englishSearchTerm);
-                menuItem = menuItems.find((m: MenuItem) => 
+                matchedMenuItem = menuItems.find((m: MenuItem) => 
                   m.name_en.toLowerCase().trim() === englishSearchTerm
                 );
-                console.log('English match result:', menuItem?.name_en);
+                console.log(`Matched English text "${searchTerm}" to menu item:`, matchedMenuItem?.name_en);
               }
-
-              if (menuItem) {
-                actualItemId = menuItem.item;
+              if (matchedMenuItem) {
+                actualItemId = matchedMenuItem.item;
               }
             }
-
-            // Handle Arabic size names
+            // Handle Arabic size names and always send English size
             let normalizedSize = (item.size || 'medium').trim();
-            // Handle various Arabic spellings and common typos
-            if (normalizedSize === 'وسط' || 
-                normalizedSize === 'ستة' || 
-                normalizedSize === 'مواسطة' ||
-                normalizedSize === 'واسبتة' ||  // Common typo
-                normalizedSize === 'وصط' ||     // Common typo
-                normalizedSize === 'متوسط') normalizedSize = 'medium';
-            else if (normalizedSize === 'كبير' ||
-                     normalizedSize === 'كبيره' ||
-                     normalizedSize === 'كبيرة') normalizedSize = 'large';
-            else if (normalizedSize === 'صغير' ||
-                     normalizedSize === 'صغيره' ||
-                     normalizedSize === 'صغيرة') normalizedSize = 'small';
-            
-            console.log(`Normalized size from "${item.size}" to "${normalizedSize}"`);
-
+            let normalizedSizeEn = normalizedSize;
+            if (["وسط","ستة","مواسطة","واسبتة","وصط","متوسط"].includes(normalizedSize)) normalizedSizeEn = 'medium';
+            else if (["كبير","كبيره","كبيرة"].includes(normalizedSize)) normalizedSizeEn = 'large';
+            else if (["صغير","صغيره","صغيرة"].includes(normalizedSize)) normalizedSizeEn = 'small';
+            console.log(`Normalized size from "${item.size}" to "${normalizedSizeEn}"`);
             return {
-              item_id: item.item_id, // Keep original item_id to match with menu items
-              size: normalizedSize,
+              item_id: actualItemId, // Always use numeric ID after matching
+              size: normalizedSizeEn,
               quantity: item.quantity || 1,
               status: item.status || 'pending'
             };
