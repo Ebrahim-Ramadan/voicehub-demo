@@ -14,9 +14,23 @@ function tryParseString(value: any) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    console.log('received webhook (raw):', body);
+      const contentType = req.headers.get('content-type') || '';
+    let body: any;
 
+    // Only proceed with parsing based on content type
+    if (contentType.includes('application/json')) {
+      body = await req.json();
+      console.log('received JSON webhook:', body);
+    } else if (contentType.includes('application/x-www-form-urlencoded')) {
+      const formData = await req.formData();
+      body = Object.fromEntries(formData);
+      console.log('received form data webhook:', body);
+    } else {
+      return NextResponse.json(
+        { error: 'Unsupported content type. Send as application/json' },
+        { status: 415 }
+      );
+    }
     // The external service sends JSON as a string under various keys like `Item` or `Final_order`
     // Example: { Final_order: '{"order":{"items":[{"item_id":13,...}]}}' }
     let items: any = null;
