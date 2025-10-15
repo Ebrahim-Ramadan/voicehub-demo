@@ -102,7 +102,7 @@ export default function Home() {
 
   return (
     <main className="w-full flex bg-[#FDFDFD] justify-center p-6 min-h-screen">
-      <div className="items-center justify-center flex flex-col h-[90vh] w-full max-w-6xl">
+      <div className={`items-center  flex flex-col h-[90vh] w-full max-w-6xl ${items.length === 0 ? "justify-center" : "justify-start"}`}>
         {items.length === 0 ? (
           <video
             src='/anm/coffee-caribou-logo.mp4'
@@ -114,7 +114,9 @@ export default function Home() {
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full mb-8">
-              {items.map((it, index) => (
+              {items.map((it, index) => {
+                console.log('it', it);
+                return (
                 <li 
                   key={it.item_id} 
                   className={`
@@ -202,24 +204,46 @@ export default function Home() {
                     </div>
                   </div>
                 </li>
-              ))}
+              )
+              }
+              
+              
+              
+              
+              )}
             </div>
 
-            {/* Vertical Grand Total */}
-            <div className="w-full max-w-sm self-start bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl shadow-lg p-6">
-              <div className="flex flex-col space-y-4">
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Summary</h2>
-                  <p className="text-gray-600 text-sm">Total Items: {items.length}</p>
-                </div>
-                
-                <div className="bg-white rounded-lg p-4 shadow-inner">
-                  <div className="flex justify-between items-center text-xl">
-                    <span className="text-gray-700 font-semibold">Grand Total:</span>
-                    <span className="text-3xl font-bold text-blue-600">
-                      {items[0]?.menuItem?.currency || 'KWD'} {grandTotal.toFixed(3)}
-                    </span>
+            {/* Bottom Center Total with Breakdown */}
+            <div className="w-full max-w-2xl mx-auto mt-8 border-t-4 border-blue-500 absolute bottom-6 left-0 right-0 bg-white ">
+              {/* Price Breakdown */}
+              <div className="">
+                {items.map((it) => (
+                  <div key={it.item_id} className="flex items-center justify-between text-gray-600 px-4 hover:bg-gray-50 py-2 rounded">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm">{it.menuItem?.name_en || `Item #${it.item_id}`}</span>
+                      <span className="text-xs text-gray-500">({it.size})</span>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <span className="text-sm">
+                        {it.menuItem?.currency} {it.menuItem?.sizes[it.size?.toLowerCase() || '']?.toFixed(3) || '0.000'}
+                      </span>
+                      <span className="text-sm font-medium">×</span>
+                      <span className="text-sm w-8 text-center">{it.quantity}</span>
+                      <span className="text-sm font-semibold w-24 text-right">
+                        {it.menuItem?.currency} {it.total?.toFixed(3)}
+                      </span>
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              {/* Grand Total */}
+              <div className="border-t border-gray-200 ">
+                <div className="flex justify-between items-center px-4">
+                  <span className="text-xl font-bold text-gray-900">Total</span>
+                  <span className="text-2xl font-bold text-blue-600">
+                    {items[0]?.menuItem?.currency || 'KWD'} {grandTotal.toFixed(3)}
+                  </span>
                 </div>
               </div>
             </div>
