@@ -15,13 +15,27 @@ export function removeSubscriber(id: string) {
 
 export function sendEvent(event: string, payload: any) {
   const data = JSON.stringify(payload);
-  for (const { controller } of subscribers.values()) {
+  const count = subscribers.size;
+  console.log(`Broadcasting event ${event} to ${count} subscribers:`, data);
+  
+  if (count === 0) {
+    console.warn('No subscribers available to receive the event');
+    return;
+  }
+
+  let successCount = 0;
+  for (const { id, controller } of subscribers.values()) {
     try {
       controller.enqueue(`event: ${event}\ndata: ${data}\n\n`);
+      successCount++;
     } catch (e) {
-      // ignore individual subscriber errors
+      console.error(`Error broadcasting to subscriber ${id}:`, e);
+      // Remove failed subscriber
+      removeSubscriber(id);
     }
   }
+  
+  console.log(`Successfully broadcast to ${successCount}/${count} subscribers`);
 }
 
 export function currentSubscribersCount() {

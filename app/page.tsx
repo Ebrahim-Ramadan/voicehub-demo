@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 type OrderItem = { 
-  item_id: number; 
+  item_id: number | string; 
   size?: string; 
   quantity?: number; 
   status?: string;
@@ -25,44 +25,166 @@ type MenuItem = {
 type EnrichedItem = OrderItem & {
   menuItem?: MenuItem;
   total?: number;
+  isNew?: boolean;
 };
 
 export default function Home() {
   const [items, setItems] = useState<EnrichedItem[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [connected, setConnected] = useState(false);
+useEffect(() => {
+  // Load menu.json
+  fetch('/menu.json')
+    .then(res => res.json())
+    .then(menu => setMenuItems(menu))
+    .catch(err => console.error('Failed to load menu:', err));
 
-  useEffect(() => {
-    // Load menu.json
-    fetch('/menu.json')
-      .then(res => res.json())
-      .then(menu => setMenuItems(menu))
-      .catch(err => console.error('Failed to load menu:', err));
+  let es: EventSource | null = null;
+  let reconnectTimer: NodeJS.Timeout | undefined;
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const RECONNECT_INTERVAL = 3000;
 
-    const es = new EventSource('/api/events');
+  const setupEventSource = () => {
+    try {
+      if (es instanceof EventSource) {
+        es.close();
+        es = null;
+      }
+      
+      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        console.error('Max reconnection attempts reached');
+        setConnected(false);
+        return;
+      }
 
-    es.addEventListener('open', () => setConnected(true));
-    es.addEventListener('error', () => setConnected(false));
+      const newEventSource = new EventSource('/api/events');
+      console.log('Setting up new SSE connection, attempt:', reconnectAttempts + 1);
+
+      newEventSource.addEventListener('open', () => {
+        console.log('SSE connection opened successfully');
+        setConnected(true);
+        reconnectAttempts = 0; // Reset attempts on successful connection
+        // Clear any pending reconnect timer
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = undefined;
+        }
+      });
+
+      newEventSource.addEventListener('error', (e) => {
+        console.log('SSE connection error:', e);
+        setConnected(false);
+        newEventSource.close();
+        
+        // Attempt to reconnect after RECONNECT_INTERVAL
+        reconnectAttempts++;
+        if (!reconnectTimer && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          reconnectTimer = setTimeout(() => {
+            console.log('Attempting to reconnect SSE...');
+            setupEventSource();
+          }, RECONNECT_INTERVAL);
+        }
+      });
+
+      newEventSource.addEventListener('order-items', (e: MessageEvent) => {
+        try {
+          console.log('Received SSE event:', e.data);
+          const parsed = JSON.parse(e.data);
+          console.log('Parsed event data:', parsed);
+          if (parsed?.items && Array.isArray(parsed.items)) {
+            setItems((prev) => {
+              console.log('Previous items:', prev);
+              // Track new items for animation
+              const newItems = parsed.items.filter(
+                (newItem: EnrichedItem) => !prev.some((old: EnrichedItem) => old.item_id === newItem.item_id)
+              );
+              console.log('New items:', newItems);
+              
+              // Merge unique by item_id
+              const map = new Map(prev.map((i) => [i.item_id, i]));
+              for (const it of parsed.items) {
+                map.set(it.item_id, { ...it, isNew: newItems.some((n: EnrichedItem) => n.item_id === it.item_id) });
+              }
+              const result = Array.from(map.values());
+              console.log('Updated items:', result);
+              return result;
+            });
+          }
+        } catch (err) {
+          console.error('failed to parse event data', err);
+        }
+      });
+
+      // fallback: listen to default message event
+      newEventSource.onmessage = (e) => {
+        try {
+          const parsed = JSON.parse(e.data);
+          if (parsed?.items) setItems(parsed.items);
+        } catch (_) {}
+      };
+
+      es = newEventSource;
+    } catch (error) {
+      console.error('Error setting up EventSource:', error);
+      setConnected(false);
+      // Schedule a retry
+      if (!reconnectTimer && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectTimer = setTimeout(() => {
+          reconnectAttempts++;
+          setupEventSource();
+        }, RECONNECT_INTERVAL);
+      }
+    }
+
+    es.addEventListener('open', () => {
+      console.log('SSE connection opened successfully');
+      setConnected(true);
+      reconnectAttempts = 0; // Reset attempts on successful connection
+      // Clear any pending reconnect timer
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
+      }
+    });
+
+    es.addEventListener('error', (e) => {
+      console.log('SSE connection error:', e);
+      setConnected(false);
+      es.close();
+      
+      // Attempt to reconnect after 3 seconds
+      if (!reconnectTimer) {
+        reconnectTimer = setTimeout(() => {
+          console.log('Attempting to reconnect SSE...');
+          setupEventSource();
+        }, 3000);
+      }
+    });
 
     es.addEventListener('order-items', (e: MessageEvent) => {
       try {
+        console.log('Received SSE event:', e.data);
         const parsed = JSON.parse(e.data);
+        console.log('Parsed event data:', parsed);
         if (parsed?.items && Array.isArray(parsed.items)) {
           setItems((prev) => {
+            console.log('Previous items:', prev);
             // Track new items for animation
             const newItems = parsed.items.filter(
-              (newItem: EnrichedItem) => !prev.some(old => old.item_id === newItem.item_id)
+              (newItem: EnrichedItem) => !prev.some((old: EnrichedItem) => old.item_id === newItem.item_id)
             );
+            console.log('New items:', newItems);
             
             // Merge unique by item_id
             const map = new Map(prev.map((i) => [i.item_id, i]));
             for (const it of parsed.items) {
               map.set(it.item_id, { ...it, isNew: newItems.some(n => n.item_id === it.item_id) });
             }
-            return Array.from(map.values());
+            const result = Array.from(map.values());
+            console.log('Updated items:', result);
+            return result;
           });
-          console.log('items', items);
-          
         }
       } catch (err) {
         console.error('failed to parse event data', err);
@@ -76,17 +198,54 @@ export default function Home() {
         if (parsed?.items) setItems(parsed.items);
       } catch (_) {}
     };
+  };
 
-    return () => {
+  // Initial connection setup
+  setupEventSource();
+
+  // Cleanup function
+  return () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = undefined;
+    }
+    if (es instanceof EventSource) {
+      console.log('Cleaning up SSE connection');
       es.close();
-    };
-  }, []);
+      es = null;
+    }
+    setConnected(false);
+  };
+}, []);
 
   // Enrich items with menu data and calculate totals
   useEffect(() => {
     setItems(prev => prev.map(item => {
-      const menuItem = menuItems.find(m => m.item === item.item_id);
-      const price = menuItem?.sizes[item.size?.toLowerCase() || ''];
+      // Find menu item by ID, Arabic name, or English name
+      let menuItem: MenuItem | undefined = undefined;
+      if (typeof item.item_id === 'number') {
+        menuItem = menuItems.find(m => m.item === item.item_id);
+      } else if (typeof item.item_id === 'string') {
+        const searchTerm = item.item_id.toLowerCase().trim();
+        // Try to find by Arabic name (case sensitive for Arabic)
+        menuItem = menuItems.find(m => m.name_ar === item.item_id);
+        
+        // If not found, try to find by English name (case insensitive)
+        if (!menuItem) {
+          menuItem = menuItems.find(m => 
+            m.name_en.toLowerCase().trim() === searchTerm
+          );
+        }
+      }
+      console.log('menuItem', menuItem);
+      
+      // Handle Arabic size names
+      let normalizedSize = item.size?.toLowerCase() || '';
+      if (normalizedSize === 'وسط' || normalizedSize === 'ستة') normalizedSize = 'medium';
+      else if (normalizedSize === 'كبير') normalizedSize = 'large';
+      else if (normalizedSize === 'صغير') normalizedSize = 'small';
+
+      const price = menuItem?.sizes[normalizedSize];
       const total = price ? (price * (item.quantity || 1)) : item.total;
       
       return {
@@ -102,7 +261,12 @@ export default function Home() {
 
   return (
     <main className="w-full flex bg-[#FDFDFD] justify-center p-6 min-h-screen">
-      <div className={`items-center  flex flex-col h-[90vh] w-full max-w-6xl ${items.length === 0 ? "justify-center" : "justify-start"}`}>
+      {/* Connection Status Indicator */}
+      <div className="fixed top-4 right-4 flex items-center gap-2">
+        <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+        <span className="text-xs text-gray-600">{connected ? 'Connected' : 'Disconnected'}</span>
+      </div>
+      <div className={`items-center flex flex-col h-[90vh] w-full max-w-6xl ${items.length === 0 ? "justify-center" : "justify-start"}`}>
         {items.length === 0 ? (
           <video
             src='/anm/coffee-caribou-logo.mp4'
@@ -126,8 +290,8 @@ export default function Home() {
                   `}
                   style={{ 
                     animationDelay: `${index * 0.1}s`,
-                    '--animate-bounceIn': 'scale(0.3) 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards'
-                  }}
+                    ['--animate-bounceIn' as string]: 'scale(0.3) 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards'
+                  } as React.CSSProperties}
                 >
                   {/* Quantity Badge */}
                   {it.quantity && (
@@ -230,7 +394,7 @@ export default function Home() {
                       <span className="text-sm font-medium">×</span>
                       <span className="text-sm w-8 text-center">{it.quantity}</span>
                       <span className="text-sm font-semibold w-24 text-right">
-                        {it.menuItem?.currency} {it.total?.toFixed(3)}
+                        {it.menuItem?.currency || "KWD"} {it.total?.toFixed(3)}
                       </span>
                     </div>
                   </div>
