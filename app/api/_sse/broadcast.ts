@@ -24,18 +24,38 @@ export function sendEvent(event: string, payload: any) {
   }
 
   let successCount = 0;
+  const failedIds: string[] = [];
+  
   for (const { id, controller } of subscribers.values()) {
     try {
+      // Enhanced controller validation
+      if (!controller || 
+          controller.desiredSize === null || 
+          typeof controller.enqueue !== 'function') {
+        throw new Error('Invalid or closed controller');
+      }
+
+      // Test the controller with a comment before sending actual data
+      controller.enqueue(': ping\n\n');
+      // If we got here, the controller is still valid
       controller.enqueue(`event: ${event}\ndata: ${data}\n\n`);
       successCount++;
     } catch (e) {
       console.error(`Error broadcasting to subscriber ${id}:`, e);
-      // Remove failed subscriber
-      removeSubscriber(id);
+      failedIds.push(id);
     }
   }
   
+  // Clean up failed subscribers after iteration
+  failedIds.forEach(id => {
+    console.log(`Removing stale connection for subscriber ${id}`);
+    removeSubscriber(id);
+  });
+  
   console.log(`Successfully broadcast to ${successCount}/${count} subscribers`);
+  if (failedIds.length > 0) {
+    console.log(`Removed ${failedIds.length} stale connections`);
+  }
 }
 
 export function currentSubscribersCount() {

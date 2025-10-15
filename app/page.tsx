@@ -48,6 +48,7 @@ useEffect(() => {
   const setupEventSource = () => {
     try {
       if (es instanceof EventSource) {
+        console.log('Closing existing EventSource connection');
         es.close();
         es = null;
       }
@@ -58,24 +59,27 @@ useEffect(() => {
         return;
       }
 
-      const newEventSource = new EventSource('/api/events');
+      console.log('Creating new EventSource connection');
+      es = new EventSource('/api/events');
       console.log('Setting up new SSE connection, attempt:', reconnectAttempts + 1);
 
-      newEventSource.addEventListener('open', () => {
+      es.addEventListener('open', () => {
         console.log('SSE connection opened successfully');
         setConnected(true);
         reconnectAttempts = 0; // Reset attempts on successful connection
-        // Clear any pending reconnect timer
         if (reconnectTimer) {
           clearTimeout(reconnectTimer);
           reconnectTimer = undefined;
         }
       });
 
-      newEventSource.addEventListener('error', (e) => {
+      es.addEventListener('error', (e) => {
         console.log('SSE connection error:', e);
         setConnected(false);
-        newEventSource.close();
+        if (es) {
+          es.close();
+          es = null;
+        }
         
         // Attempt to reconnect after RECONNECT_INTERVAL
         reconnectAttempts++;
@@ -87,7 +91,7 @@ useEffect(() => {
         }
       });
 
-      newEventSource.addEventListener('order-items', (e: MessageEvent) => {
+      es.addEventListener('order-items', (e: MessageEvent) => {
         try {
           console.log('Received SSE event:', e.data);
           const parsed = JSON.parse(e.data);
@@ -115,16 +119,6 @@ useEffect(() => {
           console.error('failed to parse event data', err);
         }
       });
-
-      // fallback: listen to default message event
-      newEventSource.onmessage = (e) => {
-        try {
-          const parsed = JSON.parse(e.data);
-          if (parsed?.items) setItems(parsed.items);
-        } catch (_) {}
-      };
-
-      es = newEventSource;
     } catch (error) {
       console.error('Error setting up EventSource:', error);
       setConnected(false);
@@ -137,67 +131,10 @@ useEffect(() => {
       }
     }
 
-    es.addEventListener('open', () => {
-      console.log('SSE connection opened successfully');
-      setConnected(true);
-      reconnectAttempts = 0; // Reset attempts on successful connection
-      // Clear any pending reconnect timer
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = undefined;
-      }
-    });
-
-    es.addEventListener('error', (e) => {
-      console.log('SSE connection error:', e);
-      setConnected(false);
-      es.close();
-      
-      // Attempt to reconnect after 3 seconds
-      if (!reconnectTimer) {
-        reconnectTimer = setTimeout(() => {
-          console.log('Attempting to reconnect SSE...');
-          setupEventSource();
-        }, 3000);
-      }
-    });
-
-    es.addEventListener('order-items', (e: MessageEvent) => {
-      try {
-        console.log('Received SSE event:', e.data);
-        const parsed = JSON.parse(e.data);
-        console.log('Parsed event data:', parsed);
-        if (parsed?.items && Array.isArray(parsed.items)) {
-          setItems((prev) => {
-            console.log('Previous items:', prev);
-            // Track new items for animation
-            const newItems = parsed.items.filter(
-              (newItem: EnrichedItem) => !prev.some((old: EnrichedItem) => old.item_id === newItem.item_id)
-            );
-            console.log('New items:', newItems);
-            
-            // Merge unique by item_id
-            const map = new Map(prev.map((i) => [i.item_id, i]));
-            for (const it of parsed.items) {
-              map.set(it.item_id, { ...it, isNew: newItems.some(n => n.item_id === it.item_id) });
-            }
-            const result = Array.from(map.values());
-            console.log('Updated items:', result);
-            return result;
-          });
-        }
-      } catch (err) {
-        console.error('failed to parse event data', err);
-      }
-    });
-
-    // fallback: listen to default message event
-    es.onmessage = (e) => {
-      try {
-        const parsed = JSON.parse(e.data);
-        if (parsed?.items) setItems(parsed.items);
-      } catch (_) {}
-    };
+    // Remove all old event listeners if any exist
+    es.removeEventListener('open', () => {});
+    es.removeEventListener('error', () => {});
+    es.removeEventListener('order-items', () => {});
   };
 
   // Initial connection setup
@@ -211,6 +148,15 @@ useEffect(() => {
     }
     if (es instanceof EventSource) {
       console.log('Cleaning up SSE connection');
+      // Send a custom close event to the server before closing
+      try {
+        fetch('/api/events', { 
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        }).catch(err => console.error('Error sending close event:', err));
+      } catch (err) {
+        console.error('Error during cleanup:', err);
+      }
       es.close();
       es = null;
     }
@@ -223,25 +169,40 @@ useEffect(() => {
     setItems(prev => prev.map(item => {
       // Find menu item by ID, Arabic name, or English name
       let menuItem: MenuItem | undefined = undefined;
+      
       if (typeof item.item_id === 'number') {
         menuItem = menuItems.find(m => m.item === item.item_id);
       } else if (typeof item.item_id === 'string') {
-        const searchTerm = item.item_id.toLowerCase().trim();
-        // Try to find by Arabic name (case sensitive for Arabic)
-        menuItem = menuItems.find(m => m.name_ar === item.item_id);
+        const isArabic = /[\u0600-\u06FF]/.test(item.item_id);
         
-        // If not found, try to find by English name (case insensitive)
+        if (isArabic) {
+          // For Arabic, do exact match
+          menuItem = menuItems.find(m => m.name_ar === item.item_id);
+          console.log('Arabic match result:', menuItem?.name_ar, 'for', item.item_id);
+        } else {
+          // For English, do case-insensitive match
+          const searchTerm = item.item_id.toLowerCase().trim();
+          menuItem = menuItems.find(m => m.name_en.toLowerCase().trim() === searchTerm);
+          console.log('English match result:', menuItem?.name_en, 'for', searchTerm);
+        }
+        
+        // If still not found, try the other way around
         if (!menuItem) {
-          menuItem = menuItems.find(m => 
-            m.name_en.toLowerCase().trim() === searchTerm
-          );
+          if (isArabic) {
+            const searchTerm = item.item_id.toLowerCase().trim();
+            menuItem = menuItems.find(m => m.name_en.toLowerCase().trim() === searchTerm);
+          } else {
+            menuItem = menuItems.find(m => m.name_ar === item.item_id);
+          }
         }
       }
+      
+      console.log('Found menu item:', menuItem, 'for item_id:', item.item_id);
       console.log('menuItem', menuItem);
       
       // Handle Arabic size names
       let normalizedSize = item.size?.toLowerCase() || '';
-      if (normalizedSize === 'وسط' || normalizedSize === 'ستة') normalizedSize = 'medium';
+      if (normalizedSize === 'وسط' || normalizedSize === 'ستة' || normalizedSize === 'مواسطة') normalizedSize = 'medium';
       else if (normalizedSize === 'كبير') normalizedSize = 'large';
       else if (normalizedSize === 'صغير') normalizedSize = 'small';
 

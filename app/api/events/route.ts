@@ -50,12 +50,23 @@ export async function GET() {
       }
     }
   });
-
+  
   return new NextResponse(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive'
-    }
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
   });
+}
+
+export async function DELETE() {
+  try {
+    // Log the cleanup request
+    console.log('Received cleanup request for SSE connections');
+    return new NextResponse('Cleanup request received', { status: 200 });
+  } catch (error) {
+    console.error('Error handling cleanup request:', error);
+    return new NextResponse('Error during cleanup', { status: 500 });
+  }
 }
